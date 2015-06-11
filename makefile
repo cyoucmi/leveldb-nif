@@ -3,7 +3,7 @@ FLAGS = -g
 ##-std=c99
 
 ## TODO:
-ERL_ROOT = /usr/local/lib/erlang/erts-5.10.4
+ERL_ROOT = /usr/local/lib/erlang/erts-6.4
 
 ECC = erlc
 
