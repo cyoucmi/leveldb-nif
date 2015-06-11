@@ -1,5 +1,7 @@
 -module(leveldb).
--export([load/0, init/1, set/2, get/1, del/1, init_iterator/0, iterator_first/1, iterator_last/1, iterator_valid/1, iterator_prev/1, iterator_next/1, iterator_entry/1]).
+-export([load/0, init/1, set/2, get/1, del/1, init_iterator/1, iterator_first/1, iterator_last/1, iterator_valid/1, iterator_prev/1, iterator_next/1, iterator_entry/1]).
+
+-export([create_snapshot/0, release_snapshot/0]).
 
 load()->
 	leveldb_nif:load().
@@ -17,8 +19,8 @@ get(KeyBin) when is_binary(KeyBin)->
 del(KeyBin) when is_binary(KeyBin)->
     leveldb_nif:del(KeyBin).
 
-init_iterator()->
-    leveldb_nif:init_iterator().
+init_iterator(IsSnapshot) when is_integer(IsSnapshot)->
+    leveldb_nif:init_iterator(IsSnapshot).
 
 iterator_first(Iterator)->
     leveldb_nif:iterator_first(Iterator).
@@ -39,4 +41,10 @@ iterator_next(Iterator)->
 
 iterator_entry(Iterator)->
     leveldb_nif:iterator_entry(Iterator).
+
+create_snapshot()->
+    leveldb_nif:create_snapshot().
+
+release_snapshot()->
+    leveldb_nif:release_snapshot().
 

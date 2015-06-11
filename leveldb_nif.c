@@ -10,8 +10,10 @@ static ErlNifResourceType *LeveldbResourceType;
 
 static leveldb_t *pDb;
 static leveldb_readoptions_t *pReadOptions;
+static leveldb_readoptions_t *pSnapshotReadOptions;
 static leveldb_writeoptions_t *pWriteOptions;
 static leveldb_options_t *pOptions;
+static const leveldb_snapshot_t* pSnapshot;
 
 
 static void
@@ -19,7 +21,6 @@ LeveldbResourceDtor(ErlNifEnv *env, void *obj){
     struct leveldb_iterator_t **ppIterator = obj;
     leveldb_iter_destroy(*ppIterator);
 }
-
 
 /*加载leveldb_nif*/
 static int leveldb_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
@@ -47,6 +48,9 @@ leveldb_unload(ErlNifEnv *env, void *priv_data){
 	}
     if(pReadOptions){
         leveldb_readoptions_destroy(pReadOptions);
+    }
+    if(pSnapshotReadOptions){
+        leveldb_readoptions_destroy(pSnapshotReadOptions);
     }
     if(pWriteOptions){
         leveldb_writeoptions_destroy(pWriteOptions);
@@ -77,6 +81,7 @@ leveldb_init(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
     leveldb_options_set_create_if_missing(pOptions, 1);
     pWriteOptions = leveldb_writeoptions_create();
     pReadOptions = leveldb_readoptions_create();
+    pSnapshotReadOptions = leveldb_readoptions_create();
     
     char* err = NULL;
     pDb = leveldb_open(pOptions, buf, &err);
@@ -141,8 +146,10 @@ leveldb1_del(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
 
 static ERL_NIF_TERM
 leveldb_init_iterator(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
+    int is_snapshot;
+    enif_get_int(env, argv[0], &is_snapshot);
     struct leveldb_iterator_t **pp_iterator = (struct leveldb_iterator_t**)enif_alloc_resource(LeveldbResourceType, sizeof(leveldb_iterator_t*));
-    *pp_iterator = leveldb_create_iterator(pDb, pReadOptions);
+    *pp_iterator = leveldb_create_iterator(pDb, is_snapshot ? pSnapshotReadOptions : pReadOptions);
     ERL_NIF_TERM ret = enif_make_resource(env, (void*)pp_iterator);
     enif_release_resource(pp_iterator);
     return ret;
@@ -233,16 +240,27 @@ leveldb_iterator_entry(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
     return enif_make_tuple2(env, enif_make_binary(env, &key_bin), enif_make_binary(env, &value_bin));
 }
 
+static ERL_NIF_TERM
+leveldb1_create_snapshot(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
+    pSnapshot = leveldb_create_snapshot(pDb);
+    leveldb_readoptions_set_snapshot(pSnapshotReadOptions, pSnapshot);
+    return enif_make_atom(env, "ok");
+}
 
-
-
+static ERL_NIF_TERM
+leveldb1_release_snapshot(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
+    leveldb_release_snapshot(pDb, pSnapshot);
+    return enif_make_atom(env, "ok");
+}
 
 static ErlNifFunc nif_funcs[] = {
 	{"init", 1, leveldb_init},
     {"set", 2, leveldb_set},
     {"get", 1, leveldb1_get},
     {"del", 1, leveldb1_del},
-    {"init_iterator", 0, leveldb_init_iterator},
+    {"create_snapshot", 0, leveldb1_create_snapshot},
+    {"release_snapshot", 0, leveldb1_release_snapshot},
+    {"init_iterator", 1, leveldb_init_iterator},
     {"iterator_first", 1, leveldb_iterator_first_entry},
     {"iterator_last", 1, leveldb_iterator_last_entry},
     {"iterator_valid", 1, leveldb_iterator_valid_entry},
